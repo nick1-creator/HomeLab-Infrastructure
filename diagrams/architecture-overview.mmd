@@ -1,0 +1,88 @@
+flowchart TB
+
+    %% CLIENTS
+    subgraph CLIENTS["1. Client Devices"]
+        direction LR
+        LAPTOP["Windows 11 Laptop<br/>Tailscale<br/>SSH Administration<br/>Wazuh Agent + Sysmon"]
+        PHONE["iPhone<br/>Tailscale<br/>Pi-hole DNS<br/>Immich HTTPS"]
+    end
+
+    %% PRIVATE ACCESS
+    subgraph ACCESS["2. Private Access"]
+        direction LR
+        TS["Tailscale Tailnet<br/>No public service exposure"]
+        ACL["Verified Access<br/>SSH TCP/22<br/>DNS TCP/UDP 53<br/>Wazuh TCP/1514<br/>Phone DNS + HTTPS"]
+        ENTRY["Nginx Proxy Manager<br/>Private internal HTTPS<br/>Private CA"]
+        DIRECT["Direct Tailnet Service Paths<br/>Pi-hole DNS<br/>Immich Tailscale Serve"]
+    end
+
+    %% SERVER
+    subgraph SERVER["3. Ubuntu Home Server"]
+
+        subgraph SERVICES["Docker / Compose"]
+            direction TB
+            APPS["Self-Hosted Services<br/><br/>Immich · Pi-hole · Homepage · Uptime Kuma<br/>Portainer · Beszel · Scrutiny · FreshRSS<br/>Karakeep · ChangeDetection · Wallos<br/>BookStack · Authentik · Grafana"]
+        end
+
+        subgraph STORAGE["4. Storage & Backup"]
+            direction TB
+            SYSTEM["Encrypted System SSD<br/>LUKS → LVM → Ubuntu"]
+            DATA["Encrypted DATA HDD<br/>Application data<br/>Immich storage"]
+            BACKUP["Encrypted BACKUP HDD<br/>LUKS + Restic"]
+            RESTORE["Local Recovery Verified<br/>Restore drills PASS<br/>Full read-data check PASS"]
+            OFFLINE["Independent / Offline Recovery<br/>VALIDATED"]
+            OFFSITE["Physical Off-site Storage<br/>NOT YET IMPLEMENTED"]
+
+            DATA --> BACKUP
+            BACKUP --> RESTORE
+            BACKUP -.-> OFFLINE
+            OFFLINE -.-> OFFSITE
+        end
+
+        subgraph SOC["5. Home SOC / SIEM"]
+            direction TB
+            MANAGER["Wazuh Manager 4.14.7<br/>Secure Agent TCP/1514"]
+            INDEXER["Wazuh Indexer<br/>OpenSearch Alert Storage"]
+            DASH["Wazuh Dashboard<br/>Threat Hunting / Dashboards"]
+            SNAP["OpenSearch Snapshot API<br/>Automated Snapshots<br/>Keep Latest 14"]
+            RESTORETEST["Selected-Index Restore Test<br/>PASS"]
+            STATE["Wazuh Manager State<br/>Included in Encrypted Backup"]
+
+            MANAGER --> INDEXER
+            INDEXER --> DASH
+            INDEXER --> SNAP
+            SNAP --> RESTORETEST
+            MANAGER --> STATE
+        end
+    end
+
+    %% CONNECTIONS
+    LAPTOP --> TS
+    PHONE --> TS
+    TS --> ACL
+    ACL -->|"Browser HTTPS"| ENTRY
+    ENTRY --> APPS
+    ACL -->|"Direct DNS / Immich"| DIRECT
+    DIRECT --> APPS
+
+    LAPTOP -->|"TCP/1514 over Tailnet"| MANAGER
+
+    STATE --> BACKUP
+    SNAP --> BACKUP
+
+    %% STYLING
+    classDef client fill:#10243a,stroke:#4da6ff,color:#ffffff,stroke-width:2px;
+    classDef access fill:#0c2a25,stroke:#35d07f,color:#ffffff,stroke-width:2px;
+    classDef service fill:#10243a,stroke:#3b82b6,color:#ffffff,stroke-width:2px;
+    classDef storage fill:#2a2412,stroke:#e6ad44,color:#ffffff,stroke-width:2px;
+    classDef soc fill:#2a1518,stroke:#ff6666,color:#ffffff,stroke-width:2px;
+    classDef verified fill:#102b20,stroke:#35d07f,color:#ffffff,stroke-width:2px;
+    classDef pending fill:#2a2412,stroke:#e6ad44,color:#ffe7a8,stroke-width:2px,stroke-dasharray:5 5;
+
+    class LAPTOP,PHONE client;
+    class TS,ACL,ENTRY,DIRECT access;
+    class APPS service;
+    class SYSTEM,DATA,BACKUP storage;
+    class MANAGER,INDEXER,DASH soc;
+    class SNAP,RESTORETEST,STATE,RESTORE,OFFLINE verified;
+    class OFFSITE pending;
